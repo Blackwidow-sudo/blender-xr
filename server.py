@@ -14,7 +14,7 @@ RADIUS = 10.0
 
 
 def calc_cam_position(speed, radius, elapsed_time):
-    """Calculate the motion of the object."""
+    """Calculate the next position of the camera."""
     angle = speed * elapsed_time
     x = radius * math.cos(angle)
     y = radius * math.sin(angle)
