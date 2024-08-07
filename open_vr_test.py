@@ -1,14 +1,19 @@
 import openvr
 import time
+import matplotlib.pyplot as plt
+import json
+
+
+FPS = 30
 
 
 def initialize_vr_system():
     # Initialize the VR system
-    vr_system = openvr.init(openvr.VRApplication_Scene)
+    vr_system = openvr.init(openvr.VRApplication_Background)
     return vr_system
 
 
-def get_tracking_data(vr_system):
+def get_tracking_data(vr_system: openvr.IVRSystem):
     # Get the poses of all tracked devices
     poses = vr_system.getDeviceToAbsoluteTrackingPose(
         openvr.TrackingUniverseStanding, 0, openvr.k_unMaxTrackedDeviceCount)
@@ -36,18 +41,47 @@ def get_tracking_data(vr_system):
 
 def main():
     vr_system = initialize_vr_system()
+    positions = []
 
     try:
         while True:
             tracking_data = get_tracking_data(vr_system)
             for device_index, data in tracking_data.items():
-                print(f"Device {device_index}: Position: {
-                      data['position']}, Rotation: {data['rotation']}")
-            time.sleep(1)  # Adjust the sleep time as necessary
+                xyz = data['position']
+                rot = data['rotation']
+                if device_index == 3:
+                    positions.append(xyz)
+                print(
+                    f"Device {device_index}: Position: {xyz}, Rotation: {rot}"
+                )
+            time.sleep(1 / FPS)  # Adjust the sleep time as necessary
     except KeyboardInterrupt:
         print("Exiting...")
     finally:
         openvr.shutdown()
+
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+
+        # y and z are swapped and x is mirrored
+        x_vals = [x[0] * -1 for x in positions]
+        y_vals = [x[2] for x in positions]
+        z_vals = [x[1] for x in positions]
+        ax.scatter(x_vals, y_vals, z_vals, marker='o')
+        ax.plot(x_vals, y_vals, z_vals, color="g")
+
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+
+        ax.set_xlim(-1, 1)
+        ax.set_ylim(-1, 1)
+        ax.set_zlim(-1, 1)
+
+        with open('recording.json', 'w', encoding='utf-8') as f:
+            f.write(json.dumps({'xyz': positions}))
+
+        plt.show()
 
 
 if __name__ == "__main__":
