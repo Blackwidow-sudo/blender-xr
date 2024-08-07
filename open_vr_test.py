@@ -2,6 +2,8 @@ import openvr
 import time
 import matplotlib.pyplot as plt
 import json
+from scipy.spatial.transform import Rotation as R
+import numpy as np
 
 
 FPS = 30
@@ -28,9 +30,9 @@ def get_tracking_data(vr_system: openvr.IVRSystem):
                 matrix[2][3]   # z
             )
             rotation = (
-                matrix[0][0], matrix[0][1], matrix[0][2],
-                matrix[1][0], matrix[1][1], matrix[1][2],
-                matrix[2][0], matrix[2][1], matrix[2][2]
+                [matrix[0][0], matrix[0][1], matrix[0][2]],
+                [matrix[1][0], matrix[1][1], matrix[1][2]],
+                [matrix[2][0], matrix[2][1], matrix[2][2]]
             )
             tracking_data[device_index] = {
                 'position': position,
@@ -41,16 +43,18 @@ def get_tracking_data(vr_system: openvr.IVRSystem):
 
 def main():
     vr_system = initialize_vr_system()
-    positions = []
+    data_record = []
+    poses = []
 
     try:
         while True:
             tracking_data = get_tracking_data(vr_system)
+            data_record.append(tracking_data)
             for device_index, data in tracking_data.items():
                 xyz = data['position']
-                rot = data['rotation']
+                rot = R.from_matrix(data['rotation']).as_quat()
                 if device_index == 3:
-                    positions.append(xyz)
+                    poses.append((xyz, rot))
                 print(
                     f"Device {device_index}: Position: {xyz}, Rotation: {rot}"
                 )
@@ -62,6 +66,8 @@ def main():
 
         fig = plt.figure()
         ax = fig.add_subplot(projection='3d')
+        positions = [x[0] for x in poses]
+        rotations = [x[1] for x in poses]
 
         # y and z are swapped and x is mirrored
         x_vals = [x[0] * -1 for x in positions]
@@ -69,6 +75,11 @@ def main():
         z_vals = [x[1] for x in positions]
         ax.scatter(x_vals, y_vals, z_vals, marker='o')
         ax.plot(x_vals, y_vals, z_vals, color="g")
+
+        for pos, quat in zip(positions, rotations):
+            x, y, z = pos[0] * -1, pos[2], pos[1]
+            u, v, w = R.from_quat(quat).apply([1, 0, 0])
+            ax.quiver(x, y, z, u, v, w, length=0.1, normalize=True, color='r')
 
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
@@ -78,8 +89,8 @@ def main():
         ax.set_ylim(-1, 1)
         ax.set_zlim(-1, 1)
 
-        with open('recording.json', 'w', encoding='utf-8') as f:
-            f.write(json.dumps({'xyz': positions}))
+        with open('data_record.json', 'w', encoding='utf-8') as f:
+            f.write(json.dumps(data_record, indent=4))
 
         plt.show()
 
